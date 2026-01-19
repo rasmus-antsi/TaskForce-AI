@@ -249,6 +249,109 @@ def get_line_of_sight(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def raytrace_visibility(request):
+    """
+    Simplified visibility analysis from a single point.
+    Only samples key points to keep response time reasonable.
+    Uses 16 rays with 5 samples each = ~80 elevation queries.
+    """
+    try:
+        data = json.loads(request.body)
+        observer = data.get('observer')
+        radius = data.get('radius', 1000)  # Default 1km
+        observer_height = data.get('observer_height', 2.0)
+        # Fixed low values for performance - ignore client params
+        num_rays = 16  # Every 22.5 degrees
+        samples_per_ray = 5  # Only 5 samples per ray
+        
+        if not observer:
+            return JsonResponse({'error': 'Observer point required'}, status=400)
+        
+        observer_lat, observer_lng = observer
+        
+        # Get observer elevation first
+        observer_elev = query_elevation(observer_lat, observer_lng) + observer_height
+        obstruction_buffer = 15.0  # meters for trees/buildings
+        
+        # Generate rays in all directions
+        visibility_map = []
+        
+        for ray_idx in range(num_rays):
+            bearing = (360.0 / num_rays) * ray_idx
+            ray_points = []
+            first_obstruction_dist = None
+            
+            for sample_idx in range(1, samples_per_ray + 1):
+                distance = (radius / samples_per_ray) * sample_idx
+                target_lat, target_lng = destination_point(observer_lat, observer_lng, bearing, distance)
+                target_elev = query_elevation(target_lat, target_lng)
+                
+                # Simple visibility check: compare heights
+                # If terrain + buffer is higher than observer, it blocks view
+                is_visible = True
+                if first_obstruction_dist is None:
+                    if target_elev + obstruction_buffer > observer_elev:
+                        is_visible = False
+                        first_obstruction_dist = distance
+                else:
+                    is_visible = False
+                
+                ray_points.append({
+                    'lat': target_lat,
+                    'lng': target_lng,
+                    'distance': distance,
+                    'bearing': bearing,
+                    'elevation': target_elev,
+                    'visible': is_visible,
+                })
+            
+            visibility_map.append({
+                'bearing': bearing,
+                'points': ray_points,
+                'first_obstruction': first_obstruction_dist,
+            })
+        
+        return JsonResponse({
+            'observer': observer,
+            'observer_elevation': observer_elev,
+            'radius': radius,
+            'visibility_map': visibility_map,
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import traceback
+        print(f"Raytrace error: {e}")
+        print(traceback.format_exc())
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def destination_point(lat, lng, bearing, distance):
+    """
+    Calculate destination point given start point, bearing, and distance.
+    Returns [lat, lng]
+    """
+    R = 6371000  # Earth radius in meters
+    lat_rad = math.radians(lat)
+    lng_rad = math.radians(lng)
+    bearing_rad = math.radians(bearing)
+    
+    lat2_rad = math.asin(
+        math.sin(lat_rad) * math.cos(distance / R) +
+        math.cos(lat_rad) * math.sin(distance / R) * math.cos(bearing_rad)
+    )
+    
+    lng2_rad = lng_rad + math.atan2(
+        math.sin(bearing_rad) * math.sin(distance / R) * math.cos(lat_rad),
+        math.cos(distance / R) - math.sin(lat_rad) * math.sin(lat2_rad)
+    )
+    
+    return [math.degrees(lat2_rad), math.degrees(lng2_rad)]
+
+
 def interpolate_path(points, num_samples):
     """
     Interpolate points along a path to get evenly spaced samples.
@@ -317,19 +420,19 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     return R * c
 
 
-def query_elevation(lat, lng):
+def query_elevation(lat, lng, include_obstructions=True):
     """
     Query elevation at a single point from Maa-amet WMS.
     Uses GetFeatureInfo on the elevation layer.
+    If include_obstructions is True, also checks for buildings and forests.
+    Returns elevation with obstruction height added.
     """
     try:
-        # Convert lat/lng to Estonian CRS (EPSG:3301) for WMS query
-        # For now, use a simple approximation - the WMS should handle reprojection
-        
         # Create a small bounding box around the point
         delta = 0.0001  # ~10m
         bbox = f"{lng-delta},{lat-delta},{lng+delta},{lat+delta}"
         
+        # Query base elevation
         params = {
             'SERVICE': 'WMS',
             'VERSION': '1.1.1',
@@ -345,28 +448,83 @@ def query_elevation(lat, lng):
             'Y': 1,
         }
         
-        response = requests.get(ELEVATION_WMS_URL, params=params, timeout=10)
+        response = requests.get(ELEVATION_WMS_URL, params=params, timeout=5)
+        base_elevation = 0
         
         if response.status_code == 200:
             # Parse elevation from response
             text = response.text
-            # Look for numeric value in response
             import re
             numbers = re.findall(r'[-+]?\d*\.?\d+', text)
             if numbers:
-                # Return the first reasonable elevation value (typically 0-500m for Estonia)
                 for num in numbers:
                     val = float(num)
                     if -50 < val < 1000:  # Reasonable elevation range
-                        return val
+                        base_elevation = val
+                        break
         
-        # Fallback: return simulated elevation based on position
-        # This is a placeholder until we confirm the correct API
-        return simulate_elevation(lat, lng)
+        if base_elevation == 0:
+            base_elevation = simulate_elevation(lat, lng)
+        
+        # Add obstruction height (buildings, forests, etc.)
+        obstruction_height = 0
+        if include_obstructions:
+            obstruction_height = query_obstruction_height(lat, lng)
+        
+        return base_elevation + obstruction_height
         
     except Exception as e:
         print(f"Elevation query error: {e}")
-        return simulate_elevation(lat, lng)
+        base = simulate_elevation(lat, lng)
+        if include_obstructions:
+            base += query_obstruction_height(lat, lng)
+        return base
+
+
+def query_obstruction_height(lat, lng):
+    """
+    Query obstruction height (buildings, forests) at a point.
+    Returns additional height in meters.
+    """
+    try:
+        # Query building layer (if available)
+        delta = 0.0001
+        bbox = f"{lng-delta},{lat-delta},{lng+delta},{lat+delta}"
+        
+        # Try to query building layer
+        building_params = {
+            'SERVICE': 'WMS',
+            'VERSION': '1.1.1',
+            'REQUEST': 'GetFeatureInfo',
+            'LAYERS': 'HYB_hoone',  # Building layer
+            'QUERY_LAYERS': 'HYB_hoone',
+            'INFO_FORMAT': 'text/plain',
+            'SRS': 'EPSG:4326',
+            'BBOX': bbox,
+            'WIDTH': 3,
+            'HEIGHT': 3,
+            'X': 1,
+            'Y': 1,
+        }
+        
+        response = requests.get(ELEVATION_WMS_URL, params=building_params, timeout=5)
+        
+        if response.status_code == 200 and response.text.strip():
+            # If building found, estimate height (typical Estonian buildings: 5-30m)
+            # This is a simplification - real implementation would parse building height data
+            return 15.0  # Average building height
+        
+        # Check for forest (simplified - would need forest layer)
+        # For now, use a simple heuristic based on location
+        # In real implementation, query forest/vegetation layers
+        
+        return 0
+        
+    except Exception as e:
+        # Fallback: use simple heuristic
+        # In Estonia, forests are common and typically 10-25m tall
+        # This is a placeholder - real implementation would query actual data
+        return 0
 
 
 def simulate_elevation(lat, lng):

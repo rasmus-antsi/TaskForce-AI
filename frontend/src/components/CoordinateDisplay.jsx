@@ -34,7 +34,7 @@ function CoordinateDisplayInner() {
       <div className="flex justify-between mb-1">
         <span className="text-[#5f6368] mr-3 min-w-[45px]">MGRS</span>
         <span 
-          className="text-[#00b4d8] cursor-pointer hover:text-[#00d4f8] transition-colors font-semibold"
+          className="text-[#e8eaed] cursor-pointer hover:text-[#9aa0a6] transition-colors font-semibold"
           onClick={() => copyToClipboard(mgrsCoord)}
           title="Click to copy"
         >
@@ -44,7 +44,7 @@ function CoordinateDisplayInner() {
       <div className="flex justify-between mb-1">
         <span className="text-[#5f6368] mr-3 min-w-[45px]">UTM</span>
         <span 
-          className="text-[#00b4d8] cursor-pointer hover:text-[#00d4f8] transition-colors font-semibold"
+          className="text-[#e8eaed] cursor-pointer hover:text-[#9aa0a6] transition-colors font-semibold"
           onClick={() => copyToClipboard(formatUTM(utmCoord))}
           title="Click to copy"
         >
@@ -54,7 +54,7 @@ function CoordinateDisplayInner() {
       <div className="flex justify-between mb-1">
         <span className="text-[#5f6368] mr-3 min-w-[45px]">WGS84</span>
         <span 
-          className="text-[#00b4d8] cursor-pointer hover:text-[#00d4f8] transition-colors font-semibold"
+          className="text-[#e8eaed] cursor-pointer hover:text-[#9aa0a6] transition-colors font-semibold"
           onClick={() => copyToClipboard(latLonStr)}
           title="Click to copy"
         >
