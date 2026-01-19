@@ -197,3 +197,178 @@ export function parseCoordinates(input) {
   
   return null
 }
+
+/**
+ * Calculate distance between two lat/lng points in meters (Haversine formula)
+ * @param {number} lat1 - Latitude of first point
+ * @param {number} lon1 - Longitude of first point
+ * @param {number} lat2 - Latitude of second point
+ * @param {number} lon2 - Longitude of second point
+ * @returns {number} Distance in meters
+ */
+export function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000 // Earth radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+/**
+ * Calculate total distance along a path of points
+ * @param {Array<[number, number]>} points - Array of [lat, lng] pairs
+ * @returns {number} Total distance in meters
+ */
+export function calculatePathDistance(points) {
+  if (points.length < 2) return 0
+  let total = 0
+  for (let i = 1; i < points.length; i++) {
+    total += calculateDistance(points[i-1][0], points[i-1][1], points[i][0], points[i][1])
+  }
+  return total
+}
+
+/**
+ * Calculate area of a polygon in square meters using spherical excess formula
+ * @param {Array<[number, number]>} points - Array of [lat, lng] pairs (closed polygon)
+ * @returns {number} Area in square meters
+ */
+export function calculatePolygonArea(points) {
+  if (points.length < 3) return 0
+  
+  // Ensure polygon is closed
+  const closed = [...points]
+  if (closed[0][0] !== closed[closed.length - 1][0] || closed[0][1] !== closed[closed.length - 1][1]) {
+    closed.push(closed[0])
+  }
+  
+  const R = 6371000 // Earth radius in meters
+  let area = 0
+  
+  // Use spherical excess formula (more accurate for large areas)
+  for (let i = 0; i < closed.length - 1; i++) {
+    const p1 = closed[i]
+    const p2 = closed[i + 1]
+    
+    const lat1 = p1[0] * Math.PI / 180
+    const lon1 = p1[1] * Math.PI / 180
+    const lat2 = p2[0] * Math.PI / 180
+    const lon2 = p2[1] * Math.PI / 180
+    
+    area += (lon2 - lon1) * (2 + Math.sin(lat1) + Math.sin(lat2))
+  }
+  
+  area = Math.abs(area * R * R / 2)
+  
+  // If result seems too large, use simpler planar approximation
+  if (area > 1e12) { // > 1 million km², probably wrong
+    // Use shoelace formula on projected coordinates
+    area = 0
+    for (let i = 0; i < closed.length - 1; i++) {
+      const p1 = closed[i]
+      const p2 = closed[i + 1]
+      area += p1[1] * p2[0] - p2[1] * p1[0]
+    }
+    area = Math.abs(area) / 2
+    
+    // Convert to square meters (rough approximation)
+    const avgLat = closed.reduce((sum, p) => sum + p[0], 0) / (closed.length - 1)
+    const latRad = avgLat * Math.PI / 180
+    const latMetersPerDegree = 111320 // meters per degree latitude
+    const lonMetersPerDegree = 111320 * Math.cos(latRad) // meters per degree longitude
+    area = area * latMetersPerDegree * lonMetersPerDegree
+  }
+  
+  return area
+}
+
+/**
+ * Convert square meters to hectares
+ * @param {number} squareMeters - Area in square meters
+ * @returns {number} Area in hectares
+ */
+export function squareMetersToHectares(squareMeters) {
+  return squareMeters / 10000
+}
+
+/**
+ * Format distance for display
+ * @param {number} meters - Distance in meters
+ * @returns {string} Formatted string (e.g., "1.5 km" or "250 m")
+ */
+export function formatDistance(meters) {
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`
+  }
+  return `${(meters / 1000).toFixed(2)} km`
+}
+
+/**
+ * Calculate bearing between two points in degrees
+ * @param {number} lat1 - Latitude of first point
+ * @param {number} lon1 - Longitude of first point
+ * @param {number} lat2 - Latitude of second point
+ * @param {number} lon2 - Longitude of second point
+ * @returns {number} Bearing in degrees (0-360)
+ */
+export function calculateBearing(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const lat1Rad = lat1 * Math.PI / 180
+  const lat2Rad = lat2 * Math.PI / 180
+  
+  const y = Math.sin(dLon) * Math.cos(lat2Rad)
+  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon)
+  
+  let bearing = Math.atan2(y, x) * 180 / Math.PI
+  bearing = (bearing + 360) % 360
+  return bearing
+}
+
+/**
+ * Get center point of a polygon or circle
+ * @param {Object} geometry - Geometry object
+ * @param {string} featureType - Type of feature
+ * @returns {[number, number]} Center as [lat, lng]
+ */
+export function getFeatureCenter(geometry, featureType) {
+  if (featureType === 'circle' || geometry?.type === 'circle') {
+    if (geometry.center) {
+      return geometry.center
+    } else if (geometry.coordinates) {
+      return [geometry.coordinates[1], geometry.coordinates[0]]
+    }
+  }
+  
+  if (featureType === 'polygon' || featureType === 'rectangle' || geometry?.type === 'polygon') {
+    let coords = geometry.coordinates
+    if (geometry.type === 'Polygon') {
+      coords = geometry.coordinates[0]
+    }
+    
+    // Calculate centroid
+    let latSum = 0, lngSum = 0
+    coords.forEach(coord => {
+      const [lat, lng] = Array.isArray(coord[0]) ? [coord[0][1], coord[0][0]] : [coord[1], coord[0]]
+      latSum += lat
+      lngSum += lng
+    })
+    return [latSum / coords.length, lngSum / coords.length]
+  }
+  
+  if (featureType === 'line' || geometry?.type === 'line') {
+    let coords = geometry.coordinates
+    if (geometry.type === 'LineString') {
+      coords = geometry.coordinates.map(c => [c[1], c[0]])
+    }
+    
+    // Get middle point
+    const mid = Math.floor(coords.length / 2)
+    return coords[mid]
+  }
+  
+  return null
+}

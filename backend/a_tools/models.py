@@ -33,6 +33,7 @@ class Feature(models.Model):
         ('polygon', 'Polygon/Zone'),
         ('circle', 'Circle'),
         ('rectangle', 'Rectangle'),
+        ('arrow', 'Arrow/Direction'),
     ]
     
     name = models.CharField(max_length=100)

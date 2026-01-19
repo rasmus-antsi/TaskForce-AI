@@ -11,6 +11,8 @@ import DrawingCanvas from './tools/DrawingCanvas'
 import MarkerPalette from './tools/MarkerPalette'
 import MilSymbolMarkers, { MarkerPlacer } from './tools/MilSymbolMarker'
 import FeatureLayer from './tools/FeatureLayer'
+import MeasureTool from './tools/MeasureTool'
+import ArrowTool from './tools/ArrowTool'
 import {
   fetchMarkers,
   createMarker,
@@ -18,6 +20,7 @@ import {
   deleteMarker,
   fetchFeatures,
   deleteFeature,
+  updateFeature,
 } from '../stores/featureStore'
 
 // Define EPSG:3301 (Estonian coordinate system L-EST97)
@@ -201,10 +204,28 @@ export default function MapView() {
     setFeatures(prev => [feature, ...prev])
   }, [])
 
+  const handleFeatureUpdated = useCallback(async (updatedFeature) => {
+    try {
+      await updateFeature(updatedFeature.id, {
+        name: updatedFeature.name,
+        geometry: updatedFeature.geometry,
+        style: updatedFeature.style,
+      })
+      setFeatures(prev => prev.map(f => f.id === updatedFeature.id ? updatedFeature : f))
+    } catch (err) {
+      console.error('Failed to update feature:', err)
+    }
+  }, [])
+
   const handleFeatureDeleted = useCallback(async (id) => {
     try {
       await deleteFeature(id)
       setFeatures(prev => prev.filter(f => f.id !== id))
+      // Force map refresh by triggering a small state update
+      setTimeout(() => {
+        // This ensures the map re-renders after deletion
+        window.dispatchEvent(new Event('resize'))
+      }, 100)
     } catch (err) {
       console.error('Failed to delete feature:', err)
     }
@@ -467,6 +488,15 @@ export default function MapView() {
           }}
         />
 
+        {/* Measure Tool */}
+        <MeasureTool isActive={activeTool === 'measure'} />
+
+        {/* Arrow Tool */}
+        <ArrowTool 
+          isActive={activeTool === 'arrow'}
+          onFeatureCreated={handleFeatureCreated}
+        />
+
         {/* Marker Placer - handles marker clicks */}
         <MarkerPlacer
           isActive={activeTool === 'marker' && selectedSymbol !== null}
@@ -485,6 +515,7 @@ export default function MapView() {
         {/* Render all saved features (lines, polygons, circles) */}
         <FeatureLayer 
           features={features}
+          onUpdate={handleFeatureUpdated}
           onDelete={handleFeatureDeleted}
         />
 

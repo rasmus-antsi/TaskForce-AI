@@ -13,6 +13,7 @@ import {
   getFeatureType,
   getLayerStyle,
 } from '../../stores/featureStore'
+import { calculatePathDistance, formatDistance, calculateBearing } from '../../utils/coordinates'
 
 // Default draw options with tactical styling
 const DRAW_STYLES = {
@@ -57,6 +58,8 @@ export default function DrawingCanvas({
   const map = useMap()
   const drawnItemsRef = useRef(null)
   const currentDrawerRef = useRef(null)
+  const distanceLabelRef = useRef(null)
+  const distanceLayerRef = useRef(null)
 
   // Initialize feature group for newly drawn items (temporary until saved)
   useEffect(() => {
@@ -104,11 +107,118 @@ export default function DrawingCanvas({
     if (drawer) {
       drawer.enable()
       currentDrawerRef.current = drawer
+      
+      // For line tool, add live distance tracking
+      if (activeTool === 'line') {
+        // Create layer for distance label
+        if (!distanceLayerRef.current) {
+          distanceLayerRef.current = L.layerGroup().addTo(map)
+        }
+        
+        let currentLayer = null
+        
+        const handleMouseMove = (e) => {
+          if (!currentLayer) return
+          
+          const latlngs = currentLayer.getLatLngs()
+          if (latlngs.length === 0) return
+          
+          const points = latlngs.map(ll => [ll.lat, ll.lng])
+          const mousePoint = [e.latlng.lat, e.latlng.lng]
+          const allPoints = [...points, mousePoint]
+          
+          if (allPoints.length >= 2) {
+            const distance = calculatePathDistance(allPoints)
+            
+            // Get last two points for bearing
+            const [p1, p2] = allPoints.slice(-2)
+            const bearing = calculateBearing(p1[0], p1[1], p2[0], p2[1])
+            
+            // Calculate midpoint
+            const midLat = (p1[0] + p2[0]) / 2
+            const midLng = (p1[1] + p2[1]) / 2
+            
+            // Remove old label
+            if (distanceLabelRef.current) {
+              distanceLayerRef.current.removeLayer(distanceLabelRef.current)
+            }
+            
+            // Create new label
+            distanceLabelRef.current = L.marker([midLat, midLng], {
+              icon: L.divIcon({
+                className: 'line-distance-label',
+                html: `<div style="
+                  background: rgba(0, 0, 0, 0.9);
+                  color: #00ff00;
+                  padding: 3px 6px;
+                  border-radius: 3px;
+                  font-family: monospace;
+                  font-size: 10px;
+                  font-weight: bold;
+                  white-space: nowrap;
+                  border: 1px solid #00ff00;
+                  pointer-events: none;
+                  transform: rotate(${bearing}deg);
+                  transform-origin: center;
+                  display: inline-block;
+                ">${formatDistance(distance)}</div>`,
+                iconSize: [100, 20],
+                iconAnchor: [50, 10],
+              }),
+              interactive: false,
+            }).addTo(distanceLayerRef.current)
+          }
+        }
+        
+        const handleDrawStart = (e) => {
+          // Clear any existing label
+          if (distanceLabelRef.current) {
+            distanceLayerRef.current.removeLayer(distanceLabelRef.current)
+            distanceLabelRef.current = null
+          }
+          
+          // Get the layer being drawn
+          currentLayer = e.layers.getLayers()[0]
+          if (currentLayer) {
+            map.on('mousemove', handleMouseMove)
+          }
+        }
+        
+        const handleDrawStop = () => {
+          // Clear label when drawing stops
+          if (distanceLabelRef.current) {
+            distanceLayerRef.current.removeLayer(distanceLabelRef.current)
+            distanceLabelRef.current = null
+          }
+          map.off('mousemove', handleMouseMove)
+          currentLayer = null
+        }
+        
+        map.on(L.Draw.Event.DRAWSTART, handleDrawStart)
+        map.on(L.Draw.Event.DRAWSTOP, handleDrawStop)
+        
+        return () => {
+          map.off(L.Draw.Event.DRAWSTART, handleDrawStart)
+          map.off(L.Draw.Event.DRAWSTOP, handleDrawStop)
+          map.off('mousemove', handleMouseMove)
+          if (distanceLabelRef.current) {
+            distanceLayerRef.current.removeLayer(distanceLabelRef.current)
+            distanceLabelRef.current = null
+          }
+          currentLayer = null
+        }
+      }
     }
 
     return () => {
       if (drawer) {
         drawer.disable()
+      }
+      if (distanceLabelRef.current) {
+        if (distanceLayerRef.current) {
+          distanceLayerRef.current.removeLayer(distanceLabelRef.current)
+        }
+        distanceLabelRef.current = null
       }
     }
   }, [activeTool, map])
