@@ -11,6 +11,10 @@ A tactical mission planning system built as a portfolio project and proof-of-con
 
 This project is currently being developed with plans for future field testing by military personnel and continued development based on real-world feedback.
 
+## Screenshot
+
+![TaskForce AI Screenshot](README-pics/screenshot-main.png)
+
 ## Overview
 
 TaskForce AI is a web-based tactical mission planning system featuring:
