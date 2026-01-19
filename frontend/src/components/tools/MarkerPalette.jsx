@@ -1,136 +1,10 @@
 /**
  * MarkerPalette - Slide-out panel for selecting MIL-STD-2525 symbols
+ * Premium military-style design with Tailwind CSS
  */
 
 import { useState, useMemo } from 'react'
 import { SYMBOL_CATEGORIES, AFFILIATIONS, generateSIDC, getSymbolDataUrl } from '../../utils/milsymbols'
-
-const styles = {
-  container: {
-    position: 'absolute',
-    left: 70,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    zIndex: 999,
-    background: 'rgba(0, 0, 0, 0.95)',
-    borderRadius: '6px',
-    border: '1px solid #444',
-    width: '280px',
-    maxHeight: '70vh',
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  header: {
-    padding: '12px',
-    borderBottom: '1px solid #444',
-    fontFamily: 'monospace',
-    fontSize: '12px',
-    color: '#fff',
-    fontWeight: 'bold',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  closeBtn: {
-    background: 'transparent',
-    border: 'none',
-    color: '#888',
-    cursor: 'pointer',
-    fontSize: '18px',
-    lineHeight: 1,
-  },
-  affiliationBar: {
-    display: 'flex',
-    padding: '8px',
-    gap: '4px',
-    borderBottom: '1px solid #333',
-  },
-  affiliationBtn: {
-    flex: 1,
-    padding: '6px',
-    border: '1px solid',
-    borderRadius: '3px',
-    cursor: 'pointer',
-    fontFamily: 'monospace',
-    fontSize: '10px',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    transition: 'all 0.15s',
-  },
-  content: {
-    flex: 1,
-    overflowY: 'auto',
-    padding: '8px',
-  },
-  category: {
-    marginBottom: '12px',
-  },
-  categoryTitle: {
-    color: '#888',
-    fontSize: '10px',
-    fontFamily: 'monospace',
-    textTransform: 'uppercase',
-    letterSpacing: '1px',
-    marginBottom: '6px',
-    paddingLeft: '4px',
-  },
-  symbolGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: '4px',
-  },
-  symbolBtn: {
-    aspectRatio: '1',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '4px',
-    background: 'transparent',
-    border: '1px solid #333',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-  },
-  symbolBtnActive: {
-    background: 'rgba(0, 200, 100, 0.2)',
-    borderColor: '#0c8',
-  },
-  symbolBtnHover: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    borderColor: '#555',
-  },
-  symbolImg: {
-    width: '40px',
-    height: '40px',
-    objectFit: 'contain',
-  },
-  symbolName: {
-    color: '#888',
-    fontSize: '8px',
-    fontFamily: 'monospace',
-    marginTop: '2px',
-    textAlign: 'center',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    width: '100%',
-  },
-  selectedInfo: {
-    padding: '10px',
-    borderTop: '1px solid #444',
-    background: 'rgba(0, 100, 50, 0.2)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-  },
-  selectedText: {
-    color: '#0c8',
-    fontFamily: 'monospace',
-    fontSize: '11px',
-  },
-}
 
 export default function MarkerPalette({ 
   isOpen, 
@@ -161,22 +35,33 @@ export default function MarkerPalette({
   if (!isOpen) return null
 
   return (
-    <div style={styles.container}>
+    <div className="absolute left-[70px] top-1/2 -translate-y-1/2 z-[999] bg-[#0a0e14]/95 backdrop-blur-xl border border-white/8 rounded-lg w-[280px] max-h-[70vh] overflow-hidden flex flex-col shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
       {/* Header */}
-      <div style={styles.header}>
-        <span>Symbol Palette</span>
-        <button style={styles.closeBtn} onClick={onClose}>×</button>
+      <div className="px-3 py-2.5 border-b border-white/8 flex justify-between items-center">
+        <span className="text-white text-xs font-mono font-semibold uppercase tracking-wider">Symbol Palette</span>
+        <button 
+          onClick={onClose}
+          className="w-6 h-6 flex items-center justify-center bg-transparent border-none text-[#5f6368] cursor-pointer hover:text-[#9aa0a6] transition-colors text-lg leading-none"
+        >
+          ×
+        </button>
       </div>
 
       {/* Affiliation selector */}
-      <div style={styles.affiliationBar}>
+      <div className="flex p-2 gap-1 border-b border-white/8">
         {Object.entries(AFFILIATIONS).map(([code, aff]) => (
           <button
             key={code}
             onClick={() => onAffiliationSelect(code)}
+            className={`
+              flex-1 px-1.5 py-1.5 border rounded text-center text-[10px] font-mono font-semibold transition-all
+              ${selectedAffiliation === code 
+                ? `bg-[${aff.color}] text-black border-[${aff.color}]` 
+                : 'bg-transparent border-[${aff.color}] text-[${aff.color}] hover:bg-[${aff.color}]/20'
+              }
+            `}
             style={{
-              ...styles.affiliationBtn,
-              background: selectedAffiliation === code ? aff.color : 'transparent',
+              backgroundColor: selectedAffiliation === code ? aff.color : 'transparent',
               borderColor: aff.color,
               color: selectedAffiliation === code ? '#000' : aff.color,
             }}
@@ -187,32 +72,43 @@ export default function MarkerPalette({
       </div>
 
       {/* Symbol categories */}
-      <div style={styles.content}>
+      <div className="flex-1 overflow-y-auto p-2">
         {Object.entries(SYMBOL_CATEGORIES).map(([catId, category]) => (
-          <div key={catId} style={styles.category}>
-            <div style={styles.categoryTitle}>{category.name}</div>
-            <div style={styles.symbolGrid}>
-              {symbolPreviews[catId]?.map(symbol => (
-                <button
-                  key={symbol.id}
-                  onClick={() => onSymbolSelect(symbol)}
-                  onMouseEnter={() => setHoveredSymbol(symbol.id)}
-                  onMouseLeave={() => setHoveredSymbol(null)}
-                  style={{
-                    ...styles.symbolBtn,
-                    ...(selectedSymbol?.id === symbol.id ? styles.symbolBtnActive : {}),
-                    ...(hoveredSymbol === symbol.id && selectedSymbol?.id !== symbol.id ? styles.symbolBtnHover : {}),
-                  }}
-                  title={symbol.name}
-                >
-                  <img 
-                    src={symbol.preview} 
-                    alt={symbol.name}
-                    style={styles.symbolImg}
-                  />
-                  <span style={styles.symbolName}>{symbol.name}</span>
-                </button>
-              ))}
+          <div key={catId} className="mb-3">
+            <div className="text-[#5f6368] text-[10px] font-mono uppercase tracking-wide mb-1.5 pl-1">
+              {category.name}
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              {symbolPreviews[catId]?.map(symbol => {
+                const isSelected = selectedSymbol?.id === symbol.id
+                const isHovered = hoveredSymbol === symbol.id
+                
+                return (
+                  <button
+                    key={symbol.id}
+                    onClick={() => onSymbolSelect(symbol)}
+                    onMouseEnter={() => setHoveredSymbol(symbol.id)}
+                    onMouseLeave={() => setHoveredSymbol(null)}
+                    className={`
+                      aspect-square flex flex-col items-center justify-center p-1 rounded border transition-all
+                      ${isSelected 
+                        ? 'bg-[#34d399]/20 border-[#34d399]' 
+                        : 'bg-transparent border-white/8 hover:bg-white/10 hover:border-white/20'
+                      }
+                    `}
+                    title={symbol.name}
+                  >
+                    <img 
+                      src={symbol.preview} 
+                      alt={symbol.name}
+                      className="w-10 h-10 object-contain"
+                    />
+                    <span className="text-[#5f6368] text-[8px] font-mono mt-0.5 text-center whitespace-nowrap overflow-hidden text-ellipsis w-full">
+                      {symbol.name}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         ))}
@@ -220,13 +116,13 @@ export default function MarkerPalette({
 
       {/* Selected symbol info */}
       {selectedSymbol && (
-        <div style={styles.selectedInfo}>
+        <div className="px-2.5 py-2.5 border-t border-white/8 bg-[#34d399]/10 flex items-center gap-2.5">
           <img 
             src={getSymbolDataUrl(generateSIDC(selectedSymbol.sidc, selectedAffiliation), { size: 30 })}
             alt={selectedSymbol.name}
-            style={{ width: '40px', height: '40px' }}
+            className="w-10 h-10"
           />
-          <div style={styles.selectedText}>
+          <div className="text-[#34d399] font-mono text-[11px]">
             Click on map to place<br/>
             <strong>{selectedSymbol.name}</strong>
           </div>

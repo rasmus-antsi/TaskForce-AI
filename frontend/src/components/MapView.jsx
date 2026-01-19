@@ -13,6 +13,8 @@ import MilSymbolMarkers, { MarkerPlacer } from './tools/MilSymbolMarker'
 import FeatureLayer from './tools/FeatureLayer'
 import MeasureTool from './tools/MeasureTool'
 import ArrowTool from './tools/ArrowTool'
+import ElevationProfile from './tools/ElevationProfile'
+import LineOfSight from './tools/LineOfSight'
 import {
   fetchMarkers,
   createMarker,
@@ -251,48 +253,41 @@ export default function MapView() {
       />
 
       {/* Grid Level Selector */}
-      <div style={{
-        position: 'absolute',
-        bottom: 140,
-        left: 70,
-        zIndex: 1000,
-        background: 'rgba(0, 0, 0, 0.9)',
-        borderRadius: '4px',
-        border: '1px solid #444',
-        padding: '8px',
-      }}>
-        <div style={{
-          color: '#888',
-          fontSize: '9px',
-          fontFamily: 'monospace',
-          marginBottom: '6px',
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-        }}>
+      <div className="absolute bottom-[140px] left-2.5 z-[1000] bg-[#0a0e14]/95 backdrop-blur-xl border border-white/8 rounded p-2 shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
+        <div className="text-[#5f6368] text-[9px] font-mono mb-1.5 uppercase tracking-wide">
           MGRS Grid
         </div>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          {GRID_OPTIONS.map(opt => (
-            <button
-              key={opt.label}
-              onClick={() => setGridLevel(opt.value)}
-              style={{
-                background: gridLevel === opt.value ? opt.color : 'transparent',
-                color: gridLevel === opt.value ? (opt.value === 10000 ? '#000' : '#fff') : opt.color,
-                border: `1px solid ${opt.color}`,
-                padding: '4px 8px',
-                borderRadius: '3px',
-                cursor: 'pointer',
-                fontFamily: 'monospace',
-                fontSize: '10px',
-                fontWeight: 'bold',
-                opacity: gridLevel === opt.value ? 1 : 0.7,
-                transition: 'all 0.15s',
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="flex gap-1">
+          {GRID_OPTIONS.map(opt => {
+            const isActive = gridLevel === opt.value
+            const colorMap = {
+              '#ff0000': 'border-red-500 text-red-500',
+              '#ffcc00': 'border-yellow-400 text-yellow-400',
+              '#888888': 'border-gray-500 text-gray-500',
+            }
+            const colorClass = colorMap[opt.color] || 'border-white/8 text-white/70'
+            
+            return (
+              <button
+                key={opt.label}
+                onClick={() => setGridLevel(opt.value)}
+                className={`
+                  px-2 py-1 rounded text-[10px] font-mono font-bold cursor-pointer transition-all
+                  ${isActive 
+                    ? `bg-[${opt.color}] ${opt.value === 10000 ? 'text-black' : 'text-white'} border-2 border-[${opt.color}]` 
+                    : `bg-transparent ${colorClass} border border-[${opt.color}] opacity-70 hover:opacity-100`
+                  }
+                `}
+                style={{
+                  backgroundColor: isActive ? opt.color : 'transparent',
+                  borderColor: opt.color,
+                  color: isActive ? (opt.value === 10000 ? '#000' : '#fff') : opt.color,
+                }}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -495,6 +490,20 @@ export default function MapView() {
         <ArrowTool 
           isActive={activeTool === 'arrow'}
           onFeatureCreated={handleFeatureCreated}
+        />
+
+        {/* Elevation Profile Tool */}
+        <ElevationProfile 
+          isActive={activeTool === 'elevation'}
+          onClose={() => setActiveTool(null)}
+          onFeatureSaved={handleFeatureCreated}
+        />
+
+        {/* Line of Sight Tool */}
+        <LineOfSight 
+          isActive={activeTool === 'los'}
+          onClose={() => setActiveTool(null)}
+          onFeatureSaved={handleFeatureCreated}
         />
 
         {/* Marker Placer - handles marker clicks */}

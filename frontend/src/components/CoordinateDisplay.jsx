@@ -1,48 +1,11 @@
+/**
+ * CoordinateDisplay - Shows current mouse position coordinates
+ * Premium military-style design with Tailwind CSS
+ */
+
 import { useState } from 'react'
 import { useMap, useMapEvents } from 'react-leaflet'
 import { latLonToMGRS, latLonToUTM, formatLatLon, formatUTM } from '../utils/coordinates'
-
-const styles = {
-  container: {
-    position: 'absolute',
-    bottom: 30,
-    left: 10,
-    zIndex: 1000,
-    background: 'rgba(0, 0, 0, 0.85)',
-    color: '#00ff00',
-    padding: '8px 12px',
-    borderRadius: '4px',
-    fontFamily: 'monospace',
-    fontSize: '12px',
-    minWidth: '280px',
-    border: '1px solid #333',
-    userSelect: 'text',
-  },
-  row: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    marginBottom: '4px',
-  },
-  label: {
-    color: '#888',
-    marginRight: '12px',
-    minWidth: '45px',
-  },
-  value: {
-    color: '#00ff00',
-    cursor: 'pointer',
-  },
-  divider: {
-    borderTop: '1px solid #333',
-    margin: '6px 0',
-  },
-  zoomInfo: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    color: '#666',
-    fontSize: '10px',
-  },
-}
 
 function CoordinateDisplayInner() {
   const map = useMap()
@@ -67,39 +30,39 @@ function CoordinateDisplayInner() {
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.row}>
-        <span style={styles.label}>MGRS</span>
+    <div className="absolute bottom-7.5 left-2.5 z-[1000] bg-[#0a0e14]/85 backdrop-blur-xl text-[#00b4d8] px-3 py-2 rounded border border-white/8 font-mono text-xs min-w-[280px] select-text shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
+      <div className="flex justify-between mb-1">
+        <span className="text-[#5f6368] mr-3 min-w-[45px]">MGRS</span>
         <span 
-          style={styles.value} 
+          className="text-[#00b4d8] cursor-pointer hover:text-[#00d4f8] transition-colors font-semibold"
           onClick={() => copyToClipboard(mgrsCoord)}
           title="Click to copy"
         >
           {mgrsCoord}
         </span>
       </div>
-      <div style={styles.row}>
-        <span style={styles.label}>UTM</span>
+      <div className="flex justify-between mb-1">
+        <span className="text-[#5f6368] mr-3 min-w-[45px]">UTM</span>
         <span 
-          style={styles.value} 
+          className="text-[#00b4d8] cursor-pointer hover:text-[#00d4f8] transition-colors font-semibold"
           onClick={() => copyToClipboard(formatUTM(utmCoord))}
           title="Click to copy"
         >
           {formatUTM(utmCoord)}
         </span>
       </div>
-      <div style={styles.row}>
-        <span style={styles.label}>WGS84</span>
+      <div className="flex justify-between mb-1">
+        <span className="text-[#5f6368] mr-3 min-w-[45px]">WGS84</span>
         <span 
-          style={styles.value} 
+          className="text-[#00b4d8] cursor-pointer hover:text-[#00d4f8] transition-colors font-semibold"
           onClick={() => copyToClipboard(latLonStr)}
           title="Click to copy"
         >
           {latLonStr}
         </span>
       </div>
-      <div style={styles.divider} />
-      <div style={styles.zoomInfo}>
+      <div className="border-t border-white/8 my-1.5" />
+      <div className="flex justify-between text-[#5f6368] text-[10px]">
         <span>Zoom: {zoom}</span>
         <span>L-EST97 (EPSG:3301)</span>
       </div>

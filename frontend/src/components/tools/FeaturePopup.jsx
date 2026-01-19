@@ -1,21 +1,15 @@
 /**
  * FeaturePopup - Enhanced edit popup for drawn features
+ * Premium military-style design with Tailwind CSS
  */
 
 import { useState, useEffect } from 'react'
-import { formatLatLon, latLonToMGRS, formatUTM, latLonToUTM, calculatePolygonArea, squareMetersToHectares, calculatePathDistance, formatDistance } from '../../utils/coordinates'
+import { formatLatLon, latLonToMGRS, formatUTM, latLonToUTM, calculatePolygonArea, squareMetersToHectares, calculatePathDistance, formatDistance, calculatePolygonPerimeter } from '../../utils/coordinates'
 import { getFeatureCenter } from '../../utils/coordinates'
 
 const COLORS = [
-  '#00ff00', // Green
-  '#ff0000', // Red
-  '#0088ff', // Blue
-  '#ffcc00', // Yellow
-  '#ff6600', // Orange
-  '#ff00ff', // Magenta
-  '#00ffff', // Cyan
-  '#ffffff', // White
-  '#000000', // Black
+  '#00ff00', '#ff0000', '#0088ff', '#ffcc00', '#ff6600',
+  '#ff00ff', '#00ffff', '#ffffff', '#000000',
 ]
 
 const BORDER_STYLES = [
@@ -23,107 +17,6 @@ const BORDER_STYLES = [
   { value: 'dashed', label: 'Dashed' },
   { value: 'dotted', label: 'Dotted' },
 ]
-
-const styles = {
-  container: {
-    fontFamily: 'monospace',
-    fontSize: '12px',
-    minWidth: '280px',
-    maxWidth: '320px',
-  },
-  field: {
-    marginBottom: '10px',
-  },
-  label: {
-    color: '#888',
-    fontSize: '10px',
-    marginBottom: '4px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-  },
-  input: {
-    width: '100%',
-    padding: '6px 8px',
-    background: '#1a1a1a',
-    color: '#fff',
-    border: '1px solid #444',
-    borderRadius: '4px',
-    fontFamily: 'monospace',
-    fontSize: '12px',
-    boxSizing: 'border-box',
-  },
-  slider: {
-    width: '100%',
-    marginTop: '4px',
-  },
-  colorGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(5, 1fr)',
-    gap: '6px',
-    marginTop: '4px',
-  },
-  colorBtn: {
-    width: '32px',
-    height: '32px',
-    border: '2px solid transparent',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  colorBtnActive: {
-    border: '2px solid #fff',
-    boxShadow: '0 0 8px rgba(255, 255, 255, 0.5)',
-  },
-  select: {
-    width: '100%',
-    padding: '6px 8px',
-    background: '#1a1a1a',
-    color: '#fff',
-    border: '1px solid #444',
-    borderRadius: '4px',
-    fontFamily: 'monospace',
-    fontSize: '12px',
-    cursor: 'pointer',
-  },
-  infoRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '4px 0',
-    borderBottom: '1px solid #333',
-    fontSize: '11px',
-  },
-  infoLabel: {
-    color: '#888',
-  },
-  infoValue: {
-    color: '#fff',
-    fontFamily: 'monospace',
-  },
-  actions: {
-    display: 'flex',
-    gap: '6px',
-    marginTop: '12px',
-  },
-  btn: {
-    flex: 1,
-    padding: '8px 12px',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontFamily: 'monospace',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    transition: 'all 0.2s',
-  },
-  saveBtn: {
-    background: '#0a0',
-    color: '#fff',
-  },
-  deleteBtn: {
-    background: '#600',
-    color: '#fff',
-  },
-}
 
 export default function FeaturePopup({ feature, onSave, onDelete }) {
   const [name, setName] = useState(feature.name || '')
@@ -149,16 +42,12 @@ export default function FeaturePopup({ feature, onSave, onDelete }) {
   if (feature.feature_type === 'polygon' || feature.feature_type === 'rectangle') {
     const coords = feature.geometry.coordinates
     if (coords && coords.length > 0) {
-      // Handle both new format [lat, lng] and old GeoJSON format [lng, lat]
       let points
       if (feature.geometry.type === 'Polygon') {
-        // Old GeoJSON format
-        points = coords[0].map(c => [c[1], c[0]]) // Convert [lng, lat] to [lat, lng]
+        points = coords[0].map(c => [c[1], c[0]])
       } else {
-        // New format - already [lat, lng]
         points = coords.map(c => Array.isArray(c[0]) ? [c[0][0], c[0][1]] : [c[0], c[1]])
       }
-      // Ensure polygon is closed
       if (points.length > 0 && (points[0][0] !== points[points.length - 1][0] || points[0][1] !== points[points.length - 1][1])) {
         points.push([points[0][0], points[0][1]])
       }
@@ -172,7 +61,7 @@ export default function FeaturePopup({ feature, onSave, onDelete }) {
 
   // Calculate distance for lines
   let distance = null
-  if (feature.feature_type === 'line') {
+  if (feature.feature_type === 'line' || feature.feature_type === 'arrow') {
     const coords = feature.geometry.coordinates
     if (coords && coords.length > 0) {
       const points = (feature.geometry.type === 'LineString' 
@@ -181,6 +70,24 @@ export default function FeaturePopup({ feature, onSave, onDelete }) {
       )
       distance = calculatePathDistance(points)
     }
+  }
+
+  // Calculate perimeter for polygons
+  let perimeter = null
+  if (feature.feature_type === 'polygon' || feature.feature_type === 'rectangle') {
+    const coords = feature.geometry.coordinates
+    if (coords && coords.length > 0) {
+      let points
+      if (feature.geometry.type === 'Polygon') {
+        points = coords[0].map(c => [c[1], c[0]])
+      } else {
+        points = coords.map(c => Array.isArray(c[0]) ? [c[0][0], c[0][1]] : [c[0], c[1]])
+      }
+      perimeter = calculatePolygonPerimeter(points)
+    }
+  } else if (feature.feature_type === 'circle') {
+    const radius = feature.geometry.radius || 1000
+    perimeter = 2 * Math.PI * radius
   }
 
   const handleSave = () => {
@@ -207,77 +114,86 @@ export default function FeaturePopup({ feature, onSave, onDelete }) {
   }
 
   return (
-    <div style={styles.container}>
+    <div className="font-mono text-xs min-w-[280px] max-w-[320px] bg-[#0a0e14]/95 backdrop-blur-xl border border-white/8 rounded-lg p-3 shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
       {/* Name field */}
-      <div style={styles.field}>
-        <div style={styles.label}>Name</div>
+      <div className="mb-2.5">
+        <div className="text-[#5f6368] text-[10px] mb-1 uppercase tracking-wide font-medium">Name</div>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          style={styles.input}
+          className="w-full px-2 py-1.5 bg-[#0a0e14] text-white border border-white/8 rounded font-mono text-xs outline-none focus:border-[#00b4d8] transition-colors"
           placeholder="Feature name"
         />
       </div>
 
       {/* Type display */}
-      <div style={styles.field}>
-        <div style={styles.label}>Type</div>
-        <div style={{ color: '#888', fontSize: '11px' }}>{feature.feature_type_display || feature.feature_type}</div>
+      <div className="mb-2.5">
+        <div className="text-[#5f6368] text-[10px] mb-1 uppercase tracking-wide font-medium">Type</div>
+        <div className="text-[#5f6368] text-[11px]">{feature.feature_type_display || feature.feature_type}</div>
       </div>
 
       {/* Coordinates */}
       {centerCoords && (
-        <div style={styles.field}>
-          <div style={styles.label}>Coordinates</div>
-          <div style={styles.infoRow}>
-            <span style={styles.infoLabel}>Lat/Lon:</span>
-            <span style={styles.infoValue}>{formatLatLon(centerCoords.lat, centerCoords.lon)}</span>
+        <div className="mb-2.5">
+          <div className="text-[#5f6368] text-[10px] mb-1 uppercase tracking-wide font-medium">Coordinates</div>
+          <div className="flex justify-between py-1 border-b border-white/8 text-[11px]">
+            <span className="text-[#5f6368]">Lat/Lon:</span>
+            <span className="text-white font-mono">{formatLatLon(centerCoords.lat, centerCoords.lon)}</span>
           </div>
-          <div style={styles.infoRow}>
-            <span style={styles.infoLabel}>MGRS:</span>
-            <span style={styles.infoValue}>{latLonToMGRS(centerCoords.lat, centerCoords.lon)}</span>
+          <div className="flex justify-between py-1 border-b border-white/8 text-[11px]">
+            <span className="text-[#5f6368]">MGRS:</span>
+            <span className="text-white font-mono">{latLonToMGRS(centerCoords.lat, centerCoords.lon)}</span>
           </div>
-          <div style={styles.infoRow}>
-            <span style={styles.infoLabel}>UTM:</span>
-            <span style={styles.infoValue}>{formatUTM(latLonToUTM(centerCoords.lat, centerCoords.lon))}</span>
+          <div className="flex justify-between py-1 border-b border-white/8 text-[11px]">
+            <span className="text-[#5f6368]">UTM:</span>
+            <span className="text-white font-mono">{formatUTM(latLonToUTM(centerCoords.lat, centerCoords.lon))}</span>
           </div>
         </div>
       )}
 
       {/* Area (for polygons/circles) */}
       {area !== null && (
-        <div style={styles.field}>
-          <div style={styles.infoRow}>
-            <span style={styles.infoLabel}>Area:</span>
-            <span style={styles.infoValue}>{area.toFixed(2)} ha</span>
+        <div className="mb-2.5">
+          <div className="flex justify-between py-1 border-b border-white/8 text-[11px]">
+            <span className="text-[#5f6368]">Area:</span>
+            <span className="text-white font-mono">{area.toFixed(2)} ha</span>
           </div>
+          {perimeter !== null && (
+            <div className="flex justify-between py-1 border-b border-white/8 text-[11px]">
+              <span className="text-[#5f6368]">Perimeter:</span>
+              <span className="text-white font-mono">{formatDistance(perimeter)}</span>
+            </div>
+          )}
         </div>
       )}
 
       {/* Distance (for lines) */}
       {distance !== null && (
-        <div style={styles.field}>
-          <div style={styles.infoRow}>
-            <span style={styles.infoLabel}>Distance:</span>
-            <span style={styles.infoValue}>{formatDistance(distance)}</span>
+        <div className="mb-2.5">
+          <div className="flex justify-between py-1 border-b border-white/8 text-[11px]">
+            <span className="text-[#5f6368]">Distance:</span>
+            <span className="text-white font-mono">{formatDistance(distance)}</span>
           </div>
         </div>
       )}
 
       {/* Color picker */}
-      <div style={styles.field}>
-        <div style={styles.label}>Color</div>
-        <div style={styles.colorGrid}>
+      <div className="mb-2.5">
+        <div className="text-[#5f6368] text-[10px] mb-1 uppercase tracking-wide font-medium">Color</div>
+        <div className="grid grid-cols-5 gap-1.5 mt-1">
           {COLORS.map(c => (
             <button
               key={c}
               onClick={() => setColor(c)}
-              style={{
-                ...styles.colorBtn,
-                background: c,
-                ...(color === c ? styles.colorBtnActive : {}),
-              }}
+              className={`
+                w-8 h-8 rounded border-2 transition-all
+                ${color === c 
+                  ? 'border-white shadow-[0_0_8px_rgba(255,255,255,0.5)]' 
+                  : 'border-transparent hover:border-white/30'
+                }
+              `}
+              style={{ backgroundColor: c }}
               title={c}
             />
           ))}
@@ -285,8 +201,10 @@ export default function FeaturePopup({ feature, onSave, onDelete }) {
       </div>
 
       {/* Opacity */}
-      <div style={styles.field}>
-        <div style={styles.label}>Border Opacity: {Math.round(opacity * 100)}%</div>
+      <div className="mb-2.5">
+        <div className="text-[#5f6368] text-[10px] mb-1 uppercase tracking-wide font-medium">
+          Border Opacity: {Math.round(opacity * 100)}%
+        </div>
         <input
           type="range"
           min="0"
@@ -294,14 +212,16 @@ export default function FeaturePopup({ feature, onSave, onDelete }) {
           step="0.1"
           value={opacity}
           onChange={(e) => setOpacity(parseFloat(e.target.value))}
-          style={styles.slider}
+          className="w-full mt-1"
         />
       </div>
 
       {/* Fill Opacity (for polygons/circles) */}
       {(feature.feature_type === 'polygon' || feature.feature_type === 'rectangle' || feature.feature_type === 'circle') && (
-        <div style={styles.field}>
-          <div style={styles.label}>Fill Opacity: {Math.round(fillOpacity * 100)}%</div>
+        <div className="mb-2.5">
+          <div className="text-[#5f6368] text-[10px] mb-1 uppercase tracking-wide font-medium">
+            Fill Opacity: {Math.round(fillOpacity * 100)}%
+          </div>
           <input
             type="range"
             min="0"
@@ -309,18 +229,18 @@ export default function FeaturePopup({ feature, onSave, onDelete }) {
             step="0.1"
             value={fillOpacity}
             onChange={(e) => setFillOpacity(parseFloat(e.target.value))}
-            style={styles.slider}
+            className="w-full mt-1"
           />
         </div>
       )}
 
       {/* Border Style */}
-      <div style={styles.field}>
-        <div style={styles.label}>Border Style</div>
+      <div className="mb-2.5">
+        <div className="text-[#5f6368] text-[10px] mb-1 uppercase tracking-wide font-medium">Border Style</div>
         <select
           value={borderStyle}
           onChange={(e) => setBorderStyle(e.target.value)}
-          style={styles.select}
+          className="w-full px-2 py-1.5 bg-[#0a0e14] text-white border border-white/8 rounded font-mono text-xs cursor-pointer outline-none focus:border-[#00b4d8] transition-colors"
         >
           {BORDER_STYLES.map(style => (
             <option key={style.value} value={style.value}>{style.label}</option>
@@ -329,16 +249,16 @@ export default function FeaturePopup({ feature, onSave, onDelete }) {
       </div>
 
       {/* Actions */}
-      <div style={styles.actions}>
+      <div className="flex gap-1.5 mt-3">
         <button 
           onClick={handleSave}
-          style={{ ...styles.btn, ...styles.saveBtn }}
+          className="flex-1 px-3 py-2 bg-gradient-to-br from-[#34d399] to-[#10b981] border-none rounded cursor-pointer font-mono text-[11px] font-bold text-white hover:shadow-[0_0_12px_rgba(52,211,153,0.4)] transition-all"
         >
           Save
         </button>
         <button 
           onClick={handleDelete}
-          style={{ ...styles.btn, ...styles.deleteBtn }}
+          className="flex-1 px-3 py-2 bg-gradient-to-br from-[#ef4444] to-[#dc2626] border-none rounded cursor-pointer font-mono text-[11px] font-bold text-white hover:shadow-[0_0_12px_rgba(239,68,68,0.4)] transition-all"
         >
           Delete
         </button>

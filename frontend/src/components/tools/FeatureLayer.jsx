@@ -1,5 +1,5 @@
 /**
- * FeatureLayer - Renders saved features (lines, polygons, circles) on the map
+ * FeatureLayer - Renders saved features (lines, polygons, circles, analyses) on the map
  * Uses React-Leaflet components for proper rendering with custom CRS
  */
 
@@ -7,6 +7,7 @@ import { Circle, Polygon, Polyline, Popup, Marker, useMap } from 'react-leaflet'
 import { DivIcon } from 'leaflet'
 import { calculatePathDistance, formatDistance, getFeatureCenter, calculateBearing } from '../../utils/coordinates'
 import FeaturePopup from './FeaturePopup'
+import AnalysisPopup from './AnalysisPopup'
 
 const DEFAULT_STYLES = {
   line: { color: '#00ff00', weight: 3, opacity: 0.9 },
@@ -14,6 +15,8 @@ const DEFAULT_STYLES = {
   rectangle: { color: '#ff6600', weight: 2, opacity: 0.9, fillColor: '#ff6600', fillOpacity: 0.2 },
   circle: { color: '#ffcc00', weight: 2, opacity: 0.9, fillColor: '#ffcc00', fillOpacity: 0.2 },
   arrow: { color: '#ffe66d', weight: 3, opacity: 0.9 },
+  elevationProfile: { color: '#0ff', weight: 3, opacity: 0.8 },
+  lineOfSight: { color: '#0f0', weight: 3, opacity: 0.8 },
 }
 
 // Create label icon for center of features
@@ -63,21 +66,97 @@ function createDistanceIcon(distance, bearing) {
   })
 }
 
+// Create analysis type icon
+function createAnalysisIcon(featureType, isVisible) {
+  const isLOS = featureType === 'lineOfSight'
+  const color = isLOS ? (isVisible ? '#0f0' : '#f00') : '#0ff'
+  const icon = isLOS 
+    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+    : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8.7L12 15.4 9.3 12.7 4 18"/></svg>'
+  
+  return new DivIcon({
+    className: 'analysis-label',
+    html: `<div style="
+      background: rgba(0, 0, 0, 0.9);
+      color: ${color};
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 10px;
+      font-weight: bold;
+      white-space: nowrap;
+      border: 1px solid ${color};
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    ">${icon} ${isLOS ? (isVisible ? 'VISIBLE' : 'BLOCKED') : 'PROFILE'}</div>`,
+    iconSize: [80, 24],
+    iconAnchor: [40, 12],
+  })
+}
+
 function FeatureItem({ feature, onUpdate, onDelete }) {
   const map = useMap()
   const geom = feature.geometry
-  const style = { ...DEFAULT_STYLES[feature.feature_type], ...feature.style }
+  const featureType = feature.feature_type
+  const isAnalysis = featureType === 'elevationProfile' || featureType === 'lineOfSight'
+  
+  // Get style with defaults
+  let style = { ...DEFAULT_STYLES[featureType], ...feature.style }
+  
+  // For LOS, set color based on visibility
+  if (featureType === 'lineOfSight' && feature.properties?.visible !== undefined) {
+    style.color = feature.properties.visible ? '#0f0' : '#f00'
+    if (!feature.properties.visible) {
+      style.dashArray = '10, 5'
+    }
+  }
   
   // Apply dash array for border styles
-  if (style.dashArray && style.dashArray !== 'solid') {
-    style.dashArray = style.dashArray === 'dashed' ? '10, 5' : '2, 5'
+  if (style.dashArray && typeof style.dashArray === 'string' && !['10, 5', '2, 5', '5, 5'].includes(style.dashArray)) {
+    if (style.dashArray === 'dashed') style.dashArray = '10, 5'
+    else if (style.dashArray === 'dotted') style.dashArray = '2, 5'
   }
 
   // Get center for label
-  const center = getFeatureCenter(geom, feature.feature_type)
+  const center = getFeatureCenter(geom, featureType)
+
+  // Handle analysis features (elevation profile, line of sight)
+  if (isAnalysis) {
+    let positions
+    if (geom.type === 'LineString') {
+      positions = geom.coordinates.map(c => [c[1], c[0]])
+    } else if (geom.coordinates) {
+      positions = geom.coordinates
+    } else {
+      return null
+    }
+    
+    const midIndex = Math.floor(positions.length / 2)
+    const midPoint = positions[midIndex]
+    const isVisible = feature.properties?.visible
+    const analysisIcon = createAnalysisIcon(featureType, isVisible)
+    
+    return (
+      <>
+        <Polyline positions={positions} pathOptions={style}>
+          <Popup maxWidth={500}>
+            <AnalysisPopup feature={feature} onDelete={onDelete} />
+          </Popup>
+        </Polyline>
+        {midPoint && (
+          <Marker position={midPoint} icon={analysisIcon}>
+            <Popup maxWidth={500}>
+              <AnalysisPopup feature={feature} onDelete={onDelete} />
+            </Popup>
+          </Marker>
+        )}
+      </>
+    )
+  }
 
   // Handle different geometry formats
-  if (feature.feature_type === 'circle' || geom?.type === 'circle') {
+  if (featureType === 'circle' || geom?.type === 'circle') {
     let centerPos, radius
     if (geom.center) {
       centerPos = geom.center
@@ -106,7 +185,7 @@ function FeatureItem({ feature, onUpdate, onDelete }) {
     )
   }
 
-  if (feature.feature_type === 'polygon' || feature.feature_type === 'rectangle' || geom?.type === 'polygon') {
+  if (featureType === 'polygon' || featureType === 'rectangle' || geom?.type === 'polygon') {
     let positions
     if (geom.type === 'Polygon') {
       positions = geom.coordinates[0].map(c => [c[1], c[0]])
@@ -130,7 +209,7 @@ function FeatureItem({ feature, onUpdate, onDelete }) {
     )
   }
 
-  if (feature.feature_type === 'line' || feature.feature_type === 'arrow' || geom?.type === 'line') {
+  if (featureType === 'line' || featureType === 'arrow' || geom?.type === 'line') {
     let positions
     if (geom.type === 'LineString') {
       positions = geom.coordinates.map(c => [c[1], c[0]])
@@ -143,7 +222,7 @@ function FeatureItem({ feature, onUpdate, onDelete }) {
     let arrowPositions = positions
     
     // For arrows, add arrowhead
-    if (feature.feature_type === 'arrow' && positions.length >= 2) {
+    if (featureType === 'arrow' && positions.length >= 2) {
       const [p1, p2] = positions.slice(-2) // Get last two points
       const dx = p2[1] - p1[1]
       const dy = p2[0] - p1[0]
@@ -186,7 +265,7 @@ function FeatureItem({ feature, onUpdate, onDelete }) {
             <FeaturePopup feature={feature} onSave={onUpdate} onDelete={onDelete} />
           </Popup>
         </Polyline>
-        {midPoint && distanceIcon && (feature.feature_type === 'line' || feature.feature_type === 'arrow') && (
+        {midPoint && distanceIcon && (featureType === 'line' || featureType === 'arrow') && (
           <Marker position={midPoint} icon={distanceIcon} interactive={false} />
         )}
       </>

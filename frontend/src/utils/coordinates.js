@@ -308,6 +308,30 @@ export function formatDistance(meters) {
 }
 
 /**
+ * Calculate perimeter of a polygon in meters
+ * @param {Array<[number, number]>} points - Array of [lat, lng] pairs
+ * @returns {number} Perimeter in meters
+ */
+export function calculatePolygonPerimeter(points) {
+  if (points.length < 2) return 0
+  
+  let perimeter = 0
+  for (let i = 0; i < points.length - 1; i++) {
+    perimeter += calculateDistance(points[i][0], points[i][1], points[i+1][0], points[i+1][1])
+  }
+  
+  // Close the polygon
+  if (points.length > 2) {
+    perimeter += calculateDistance(
+      points[points.length - 1][0], points[points.length - 1][1],
+      points[0][0], points[0][1]
+    )
+  }
+  
+  return perimeter
+}
+
+/**
  * Calculate bearing between two points in degrees
  * @param {number} lat1 - Latitude of first point
  * @param {number} lon1 - Longitude of first point

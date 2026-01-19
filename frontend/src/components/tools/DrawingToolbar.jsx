@@ -1,5 +1,6 @@
 /**
  * DrawingToolbar - Left-side toolbar for selecting drawing tools
+ * Premium military-style design with Tailwind CSS
  */
 
 import { useState } from 'react'
@@ -47,82 +48,34 @@ const Icons = {
       <line x1="16" y1="16" x2="16" y2="21"/>
     </svg>
   ),
+  elevation: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M2 20 L6 14 L10 16 L14 8 L18 12 L22 6"/>
+      <line x1="2" y1="20" x2="22" y2="20"/>
+    </svg>
+  ),
+  los: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="5" cy="12" r="3"/>
+      <circle cx="19" cy="12" r="2"/>
+      <line x1="8" y1="12" x2="17" y2="12" strokeDasharray="3,2"/>
+    </svg>
+  ),
 }
 
 // Tool definitions
 const TOOLS = [
-  { id: 'marker', icon: Icons.marker, label: 'Marker', shortcut: 'M', color: '#ff6b6b' },
-  { id: 'line', icon: Icons.line, label: 'Line', shortcut: 'L', color: '#4ecdc4' },
-  { id: 'arrow', icon: Icons.arrow, label: 'Arrow', shortcut: 'A', color: '#ffe66d' },
-  { id: 'polygon', icon: Icons.polygon, label: 'Polygon', shortcut: 'P', color: '#95e1d3' },
-  { id: 'circle', icon: Icons.circle, label: 'Circle', shortcut: 'C', color: '#f38181' },
-  { id: 'rectangle', icon: Icons.rectangle, label: 'Rectangle', shortcut: 'R', color: '#aa96da' },
-  { id: 'measure', icon: Icons.measure, label: 'Measure', shortcut: 'D', color: '#fcbad3' },
+  { id: 'marker', icon: Icons.marker, label: 'Marker', shortcut: 'M', color: 'border-red-500' },
+  { id: 'line', icon: Icons.line, label: 'Line', shortcut: 'L', color: 'border-cyan-400' },
+  { id: 'arrow', icon: Icons.arrow, label: 'Arrow', shortcut: 'A', color: 'border-amber-400' },
+  { id: 'polygon', icon: Icons.polygon, label: 'Polygon', shortcut: 'P', color: 'border-emerald-400' },
+  { id: 'circle', icon: Icons.circle, label: 'Circle', shortcut: 'C', color: 'border-purple-400' },
+  { id: 'rectangle', icon: Icons.rectangle, label: 'Rectangle', shortcut: 'R', color: 'border-pink-400' },
+  { id: 'divider1', divider: true },
+  { id: 'measure', icon: Icons.measure, label: 'Measure', shortcut: 'D', color: 'border-yellow-400' },
+  { id: 'elevation', icon: Icons.elevation, label: 'Elevation Profile', shortcut: 'E', color: 'border-cyan-500' },
+  { id: 'los', icon: Icons.los, label: 'Line of Sight', shortcut: 'V', color: 'border-green-500' },
 ]
-
-const styles = {
-  toolbar: {
-    position: 'absolute',
-    left: 10,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    zIndex: 1000,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-    background: 'linear-gradient(135deg, rgba(20, 20, 30, 0.95) 0%, rgba(10, 10, 20, 0.95) 100%)',
-    padding: '10px 8px',
-    borderRadius: '8px',
-    border: '2px solid rgba(100, 100, 120, 0.5)',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
-  },
-  button: {
-    width: '48px',
-    height: '48px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'rgba(40, 40, 50, 0.8)',
-    border: '2px solid rgba(80, 80, 100, 0.6)',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    position: 'relative',
-    color: '#fff',
-  },
-  buttonActive: {
-    background: 'rgba(0, 200, 100, 0.4)',
-    borderColor: '#0c8',
-    boxShadow: '0 0 12px rgba(0, 200, 100, 0.6)',
-    transform: 'scale(1.05)',
-  },
-  buttonHover: {
-    background: 'rgba(255, 255, 255, 0.15)',
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    transform: 'translateX(2px)',
-  },
-  tooltip: {
-    position: 'absolute',
-    left: '60px',
-    background: 'rgba(0, 0, 0, 0.95)',
-    color: '#fff',
-    padding: '6px 10px',
-    borderRadius: '4px',
-    fontSize: '12px',
-    fontFamily: 'monospace',
-    whiteSpace: 'nowrap',
-    pointerEvents: 'none',
-    border: '1px solid rgba(100, 100, 120, 0.5)',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-    zIndex: 1001,
-  },
-  shortcut: {
-    color: '#888',
-    fontSize: '10px',
-    marginLeft: '6px',
-    fontFamily: 'monospace',
-  },
-}
 
 export default function DrawingToolbar({ activeTool, onToolChange, onMarkerPaletteToggle }) {
   const [hoveredTool, setHoveredTool] = useState(null)
@@ -135,32 +88,49 @@ export default function DrawingToolbar({ activeTool, onToolChange, onMarkerPalet
   }
 
   return (
-    <div style={styles.toolbar}>
-      {TOOLS.map((tool) => (
-        <button
-          key={tool.id}
-          onClick={() => handleToolClick(tool.id)}
-          onMouseEnter={() => setHoveredTool(tool.id)}
-          onMouseLeave={() => setHoveredTool(null)}
-          style={{
-            ...styles.button,
-            ...(activeTool === tool.id ? styles.buttonActive : {}),
-            ...(hoveredTool === tool.id && activeTool !== tool.id ? styles.buttonHover : {}),
-            borderColor: activeTool === tool.id ? tool.color : undefined,
-          }}
-          title={`${tool.label} (${tool.shortcut})`}
-        >
-          {tool.icon}
-          
-          {/* Tooltip */}
-          {hoveredTool === tool.id && (
-            <span style={styles.tooltip}>
-              {tool.label}
-              <span style={styles.shortcut}>[{tool.shortcut}]</span>
-            </span>
-          )}
-        </button>
-      ))}
+    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 z-[1000] flex flex-col gap-1.5 bg-[#12161c]/95 backdrop-blur-xl border border-white/8 rounded-lg p-2.5 shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
+      {TOOLS.map((tool) => {
+        if (tool.divider) {
+          return (
+            <div
+              key={tool.id}
+              className="h-px bg-white/10 my-1"
+            />
+          )
+        }
+        
+        const isActive = activeTool === tool.id
+        const isHovered = hoveredTool === tool.id
+        
+        return (
+          <button
+            key={tool.id}
+            onClick={() => handleToolClick(tool.id)}
+            onMouseEnter={() => setHoveredTool(tool.id)}
+            onMouseLeave={() => setHoveredTool(null)}
+            className={`
+              relative w-11 h-11 flex items-center justify-center
+              rounded-md transition-all duration-200
+              ${isActive 
+                ? 'bg-[#1e242e] border-2 border-[#00b4d8] text-[#00b4d8] shadow-[0_0_12px_rgba(0,180,216,0.4)]' 
+                : 'bg-[#1a1f27] border border-white/8 text-[#9aa0a6] hover:bg-[#1e242e] hover:border-white/12 hover:-translate-y-0.5'
+              }
+              ${isActive ? tool.color : ''}
+            `}
+            title={`${tool.label} (${tool.shortcut})`}
+          >
+            {tool.icon}
+            
+            {/* Tooltip */}
+            {isHovered && (
+              <span className="absolute left-[60px] bg-black/95 text-white px-2.5 py-1.5 rounded border border-white/8 text-xs font-mono whitespace-nowrap pointer-events-none z-[1001] shadow-lg">
+                {tool.label}
+                <span className="text-[#5f6368] ml-1.5 text-[10px]">[{tool.shortcut}]</span>
+              </span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }

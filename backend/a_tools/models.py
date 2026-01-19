@@ -27,19 +27,22 @@ class Marker(models.Model):
 
 
 class Feature(models.Model):
-    """Drawn shapes: lines, polygons, circles"""
+    """Drawn shapes: lines, polygons, circles, analyses"""
     FEATURE_TYPES = [
         ('line', 'Line/Route'),
         ('polygon', 'Polygon/Zone'),
         ('circle', 'Circle'),
         ('rectangle', 'Rectangle'),
         ('arrow', 'Arrow/Direction'),
+        ('elevationProfile', 'Elevation Profile'),
+        ('lineOfSight', 'Line of Sight'),
     ]
     
     name = models.CharField(max_length=100)
     feature_type = models.CharField(max_length=20, choices=FEATURE_TYPES)
     geometry = models.JSONField()  # GeoJSON geometry
     style = models.JSONField(default=dict, blank=True)  # color, weight, opacity
+    properties = models.JSONField(default=dict, blank=True)  # analysis data, metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
