@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'a_map',
+    'a_tools',
 ]
 
 MIDDLEWARE = [
@@ -124,10 +125,5 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS settings - allow frontend to connect
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Vite dev server
-    "http://localhost:3000",
-]
-
-CORS_ALLOW_CREDENTIALS = True
+# CORS settings for development
+CORS_ALLOW_ALL_ORIGINS = True

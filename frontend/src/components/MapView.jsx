@@ -1,11 +1,24 @@
-import { useState } from 'react'
-import { MapContainer, WMSTileLayer, LayersControl } from 'react-leaflet'
+import { useState, useEffect, useCallback } from 'react'
+import { MapContainer, WMSTileLayer, LayersControl, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import 'proj4leaflet'
 import proj4 from 'proj4'
 import CoordinateDisplay from './CoordinateDisplay'
 import MGRSGrid from './MGRSGrid'
+import DrawingToolbar from './tools/DrawingToolbar'
+import DrawingCanvas from './tools/DrawingCanvas'
+import MarkerPalette from './tools/MarkerPalette'
+import MilSymbolMarkers, { MarkerPlacer } from './tools/MilSymbolMarker'
+import FeatureLayer from './tools/FeatureLayer'
+import {
+  fetchMarkers,
+  createMarker,
+  updateMarker,
+  deleteMarker,
+  fetchFeatures,
+  deleteFeature,
+} from '../stores/featureStore'
 
 // Define EPSG:3301 (Estonian coordinate system L-EST97)
 proj4.defs('EPSG:3301', '+proj=lcc +lat_1=59.33333333333334 +lat_2=58 +lat_0=57.51755393055556 +lon_0=24 +x_0=500000 +y_0=6375000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
@@ -24,12 +37,38 @@ const CRS_EPSG3301 = new L.Proj.CRS(
   }
 )
 
-// Estonia center
-const ESTONIA_CENTER = [58.595, 25.013]
+// Estonia center (default)
+const DEFAULT_CENTER = [58.595, 25.013]
 const DEFAULT_ZOOM = 3
+const STORAGE_KEY = 'taskforce_map_view'
 
-// WMS proxy base URL
-const WMS_PROXY = 'http://localhost:8000/api/wms-proxy/'
+// Load saved map position from localStorage
+function getSavedMapView() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      const { center, zoom } = JSON.parse(saved)
+      if (center && zoom !== undefined) {
+        return { center, zoom }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load saved map view:', e)
+  }
+  return { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM }
+}
+
+// Save map position to localStorage
+function saveMapView(center, zoom) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ center, zoom }))
+  } catch (e) {
+    console.warn('Failed to save map view:', e)
+  }
+}
+
+// WMS proxy base URL - uses Vite proxy to Django
+const WMS_PROXY = '/api/wms-proxy/'
 
 // Grid level options
 const GRID_OPTIONS = [
@@ -39,16 +78,162 @@ const GRID_OPTIONS = [
   { value: 1000, label: '1km', color: '#888888' },
 ]
 
+// Component to save map position on move/zoom
+function MapViewSaver() {
+  const map = useMap()
+  
+  useEffect(() => {
+    const handleMoveEnd = () => {
+      const center = map.getCenter()
+      const zoom = map.getZoom()
+      saveMapView([center.lat, center.lng], zoom)
+    }
+    
+    map.on('moveend', handleMoveEnd)
+    return () => map.off('moveend', handleMoveEnd)
+  }, [map])
+  
+  return null
+}
+
 export default function MapView() {
+  // Get initial map view from localStorage
+  const [initialView] = useState(() => getSavedMapView())
   const [gridLevel, setGridLevel] = useState(null)
+  
+  // Drawing tools state
+  const [activeTool, setActiveTool] = useState(null)
+  const [showMarkerPalette, setShowMarkerPalette] = useState(false)
+  const [selectedSymbol, setSelectedSymbol] = useState(null)
+  const [selectedAffiliation, setSelectedAffiliation] = useState('F')
+  
+  // Data state
+  const [markers, setMarkers] = useState([])
+  const [features, setFeatures] = useState([])
+
+  // Load markers and features on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [loadedMarkers, loadedFeatures] = await Promise.all([
+          fetchMarkers(),
+          fetchFeatures(),
+        ])
+        setMarkers(loadedMarkers)
+        setFeatures(loadedFeatures)
+        console.log('Loaded markers:', loadedMarkers.length, 'features:', loadedFeatures.length)
+      } catch (err) {
+        console.error('Failed to load data:', err)
+      }
+    }
+    loadData()
+  }, [])
+
+  // Global ESC handler to deselect all tools
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setActiveTool(null)
+        setShowMarkerPalette(false)
+        setSelectedSymbol(null)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Handle tool changes
+  const handleToolChange = useCallback((tool) => {
+    setActiveTool(tool)
+    if (tool !== 'marker') {
+      setShowMarkerPalette(false)
+    }
+  }, [])
+
+  // Handle marker palette toggle
+  const handleMarkerPaletteToggle = useCallback(() => {
+    setShowMarkerPalette(prev => !prev)
+  }, [])
+
+  // Handle symbol selection
+  const handleSymbolSelect = useCallback((symbol) => {
+    setSelectedSymbol(symbol)
+  }, [])
+
+  // Handle affiliation change
+  const handleAffiliationSelect = useCallback((affiliation) => {
+    setSelectedAffiliation(affiliation)
+  }, [])
+
+  // Handle marker placement
+  const handleMarkerPlaced = useCallback(async (markerData) => {
+    try {
+      const newMarker = await createMarker(markerData)
+      setMarkers(prev => [newMarker, ...prev])
+    } catch (err) {
+      console.error('Failed to create marker:', err)
+      alert('Failed to save marker')
+    }
+  }, [])
+
+  // Handle marker update
+  const handleMarkerUpdate = useCallback(async (id, markerData) => {
+    try {
+      const updated = await updateMarker(id, markerData)
+      setMarkers(prev => prev.map(m => m.id === id ? updated : m))
+    } catch (err) {
+      console.error('Failed to update marker:', err)
+    }
+  }, [])
+
+  // Handle marker deletion
+  const handleMarkerDelete = useCallback(async (id) => {
+    try {
+      await deleteMarker(id)
+      setMarkers(prev => prev.filter(m => m.id !== id))
+    } catch (err) {
+      console.error('Failed to delete marker:', err)
+    }
+  }, [])
+
+  // Handle feature events
+  const handleFeatureCreated = useCallback((feature) => {
+    setFeatures(prev => [feature, ...prev])
+  }, [])
+
+  const handleFeatureDeleted = useCallback(async (id) => {
+    try {
+      await deleteFeature(id)
+      setFeatures(prev => prev.filter(f => f.id !== id))
+    } catch (err) {
+      console.error('Failed to delete feature:', err)
+    }
+  }, [])
 
   return (
     <div style={{ width: '100%', height: '100vh', position: 'relative' }}>
+      {/* Drawing Toolbar */}
+      <DrawingToolbar 
+        activeTool={activeTool}
+        onToolChange={handleToolChange}
+        onMarkerPaletteToggle={handleMarkerPaletteToggle}
+      />
+
+      {/* Marker Palette */}
+      <MarkerPalette
+        isOpen={showMarkerPalette && activeTool === 'marker'}
+        onClose={() => setShowMarkerPalette(false)}
+        selectedSymbol={selectedSymbol}
+        selectedAffiliation={selectedAffiliation}
+        onSymbolSelect={handleSymbolSelect}
+        onAffiliationSelect={handleAffiliationSelect}
+      />
+
       {/* Grid Level Selector */}
       <div style={{
         position: 'absolute',
         bottom: 140,
-        left: 10,
+        left: 70,
         zIndex: 1000,
         background: 'rgba(0, 0, 0, 0.9)',
         borderRadius: '4px',
@@ -91,11 +276,13 @@ export default function MapView() {
       </div>
 
       <MapContainer
-        center={ESTONIA_CENTER}
-        zoom={DEFAULT_ZOOM}
+        center={initialView.center}
+        zoom={initialView.zoom}
         style={{ height: '100%', width: '100%' }}
         crs={CRS_EPSG3301}
       >
+        {/* Save map position to localStorage */}
+        <MapViewSaver />
         <LayersControl position="topright">
           {/* BASE LAYERS - Only one can be active */}
           <LayersControl.BaseLayer checked name="Ortofoto">
@@ -268,6 +455,38 @@ export default function MapView() {
           </LayersControl.Overlay>
 
         </LayersControl>
+
+        {/* Drawing Canvas - handles shape drawing */}
+        <DrawingCanvas
+          activeTool={['line', 'polygon', 'circle', 'rectangle'].includes(activeTool) ? activeTool : null}
+          onFeatureCreated={handleFeatureCreated}
+          onToolDeselect={() => {
+            setActiveTool(null)
+            setShowMarkerPalette(false)
+            setSelectedSymbol(null)
+          }}
+        />
+
+        {/* Marker Placer - handles marker clicks */}
+        <MarkerPlacer
+          isActive={activeTool === 'marker' && selectedSymbol !== null}
+          selectedSymbol={selectedSymbol}
+          selectedAffiliation={selectedAffiliation}
+          onMarkerPlaced={handleMarkerPlaced}
+        />
+
+        {/* Render all markers */}
+        <MilSymbolMarkers
+          markers={markers}
+          onUpdate={handleMarkerUpdate}
+          onDelete={handleMarkerDelete}
+        />
+
+        {/* Render all saved features (lines, polygons, circles) */}
+        <FeatureLayer 
+          features={features}
+          onDelete={handleFeatureDeleted}
+        />
 
         {/* MGRS Grid Overlay */}
         {gridLevel && <MGRSGrid gridLevel={gridLevel} />}

@@ -13,12 +13,15 @@
     "@tailwindcss/vite": "^4.1.18",
     "axios": "^1.13.2",
     "leaflet": "^1.9.4",
+    "leaflet-draw": "^1.0.4",
     "mgrs": "^2.1.0",
+    "milsymbol": "^3.0.3",
     "proj4": "^2.20.2",
     "proj4leaflet": "^1.0.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-leaflet": "^5.0.0",
+    "react-leaflet-draw": "^0.21.0",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
